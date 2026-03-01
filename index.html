@@ -74,12 +74,10 @@
         <h1 class="text-4xl font-black mb-4 drop-shadow-md tracking-wide" id="start-title">任務森林</h1>
         <p class="mb-8 opacity-90 max-w-md font-bold text-white/90">陽光正好，微風不燥。將繁雜的思緒清空，<br>帶著滿滿的活力，迎接今天的第一個挑戰吧！</p>
         
-<button id="google-login-btn" onclick="loginWithGoogle()" class="bg-white text-slate-700 px-8 py-4 rounded-full font-bold text-lg shadow-xl hover:bg-slate-50 transition-all inline-flex items-center justify-center gap-3 mb-4">
-    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6">
-    使用 Google 帳號登入
-</button>
-
-<p id="user-info" class="hidden text-sm mt-2 opacity-80 font-bold text-white mb-4"></p>
+        <button id="google-login-btn" onclick="loginWithGoogle()" class="bg-white text-slate-700 px-8 py-4 rounded-full font-bold text-lg shadow-xl hover:bg-slate-50 transition-all inline-flex items-center justify-center gap-3 mb-4">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6">
+            使用 Google 帳號登入
+        </button>
 
         <button id="start-btn" disabled onclick="initApp()" class="bg-white/70 text-slate-500 px-10 py-4 rounded-full font-black text-xl shadow-xl transition-all cursor-not-allowed inline-flex items-center justify-center gap-3">
             <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i> 連結雲端大腦中...
@@ -372,93 +370,77 @@ const appId = 'my-task-forest'; // my-forest-6e9b3
         let currentUser = null;
         let isInitialLoad = true;
 
-const initAuth = async () => {
-            console.log("導航儀已就緒，請登入。");
-        };
+        const initAuth = async () => {
+    console.log("導航儀已就緒，請點擊 Google 登入以開啟雲端同步。");
+};
 
+        // 啟動身分驗證
         initAuth();
+async function loginWithGoogle() {
+    try {
+        const provider = new GoogleAuthProvider();
+        // 這是核心！它會彈出 Google 登入視窗
+        const result = await signInWithPopup(auth, provider);
+        console.log("登入成功！使用者：", result.user.displayName);
+        
+        // 登入成功後，隱藏登入按鈕，準備讓使用者點擊 Play
+        document.getElementById('google-login-btn').style.display = 'none';
+        
+    } catch (error) {
+        console.error("登入失敗：", error.message);
+        alert("登入失敗，請檢查 Firebase 後台是否已開啟 Google 登入功能。");
+    }
+}
 
-        async function loginWithGoogle() {
-            try {
-                const provider = new GoogleAuthProvider();
-                const result = await signInWithPopup(auth, provider);
-                console.log("登入成功！", result.user.displayName);
-            } catch (error) {
-                console.error("登入失敗：", error.message);
-                alert("登入失敗，請檢查 Firebase 設定。");
-            }
-        }
-        window.loginWithGoogle = loginWithGoogle;
-
-// --- 核心身分與雲端同步邏輯 ---
+// 務必將它掛載到 window，這樣 HTML 按鈕才找得到它
+window.loginWithGoogle = loginWithGoogle;
         onAuthStateChanged(auth, (user) => {
             currentUser = user;
-
             if (user) {
-                // 1. 更新介面
-                const loginBtn = document.getElementById('google-login-btn');
-                if (loginBtn) loginBtn.style.display = 'none';
-
-                const userInfo = document.getElementById('user-info');
-                if (userInfo) {
-                    userInfo.textContent = `當前登入：${user.displayName}`;
-                    userInfo.classList.remove('hidden');
-                }
-
-                const startBtn = document.getElementById('start-btn');
-                if (startBtn) {
-                    startBtn.disabled = false;
-                    startBtn.classList.remove('bg-white/70', 'text-slate-500', 'cursor-not-allowed');
-                    startBtn.classList.add('bg-white', 'text-emerald-600', 'hover:scale-105');
-                    startBtn.innerHTML = '<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天';
-                    if (window.lucide) lucide.createIcons();
-                }
-
-                // 2. 雲端資料監聽器
+                // 堅守規則：使用標準專屬路徑儲存個人的所有資料
                 const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'appData', 'main');
+                
                 onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
                         state.tasks = data.tasks || [];
                         state.allPlans = data.allPlans || {};
+                        if (!state.allPlans[state.viewingWeek]) state.allPlans[state.viewingWeek] = {};
+                        
                         if (data.appName) {
                             document.getElementById('app-name-display').textContent = data.appName;
                         }
-                        
-                        // 防呆：如果使用者正在打字，不進行重新渲染以免搶走游標
-                        const activeElement = document.activeElement;
-                        const isInputFocused = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
-                        
-                        if (isInitialLoad || !isInputFocused) {
-                            renderTasks();
-                            if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
-                                generateWeeklyTable();
-                            }
-                            updateCurrentInfo();
-                        }
-                        
-                        if (isInitialLoad) {
-                            isInitialLoad = false;
-                            // 雲端資料載入完成，解鎖啟動按鈕
-                            const btn = document.getElementById('start-btn');
-                            if (btn) {
-                                btn.disabled = false;
-                                btn.className = "bg-white text-theme-main px-12 py-4 rounded-full font-black text-xl shadow-xl hover:shadow-white/40 hover:-translate-y-1 transition-all cursor-pointer inline-flex items-center justify-center gap-2";
-                                btn.innerHTML = `<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天`;
-                                refreshIcons();
-                            }
-                        }
                     } else if (isInitialLoad) {
-                        // 雲端無資料時搬移本地資料
+                        // 若雲端無資料，嘗試從 localStorage 拉取並無縫移轉至雲端
                         migrateLocalToCloud();
+                    }
+                    
+                    // 防呆：如果使用者正在打字，不進行重新渲染以免搶走游標
+                    const activeElement = document.activeElement;
+                    const isInputFocused = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
+                    
+                    if (isInitialLoad || !isInputFocused) {
+                        renderTasks();
+                        if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
+                            generateWeeklyTable();
+                        }
+                        updateCurrentInfo();
+                    }
+                    
+                    if (isInitialLoad) {
                         isInitialLoad = false;
+                        // 雲端資料載入完成，解鎖啟動按鈕
+                        const btn = document.getElementById('start-btn');
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.className = "bg-white text-theme-main px-12 py-4 rounded-full font-black text-xl shadow-xl hover:shadow-white/40 hover:-translate-y-1 transition-all cursor-pointer inline-flex items-center justify-center gap-2";
+                            btn.innerHTML = `<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天`;
+                            refreshIcons();
+                        }
                     }
                 }, (error) => {
-                    console.error("雲端同步失敗:", error);
+                    console.error("Cloud sync error:", error);
                 });
-
-            } else {
-                console.log("等待登入中...");
             }
         });
 
