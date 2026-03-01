@@ -398,7 +398,7 @@ async function loginWithGoogle() {
             currentUser = user;
 
             if (user) {
-                // 1. 介面變身：隱藏登入按鈕，顯示名牌與解鎖 Play
+                // 1. 介面更新：隱藏登入按鈕，顯示名牌並解鎖 Play
                 const loginBtn = document.getElementById('google-login-btn');
                 if (loginBtn) loginBtn.style.display = 'none';
 
@@ -417,7 +417,7 @@ async function loginWithGoogle() {
                     if (window.lucide) lucide.createIcons();
                 }
 
-                // 2. 啟動即時雲端同步 (onSnapshot)
+                // 2. 啟動即時雲端同步
                 const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'appData', 'main');
                 onSnapshot(docRef, (docSnap) => {
                     if (docSnap.exists()) {
@@ -428,20 +428,15 @@ async function loginWithGoogle() {
                             document.getElementById('app-name-display').textContent = data.appName;
                         }
                         
-                        // 只有在非輸入狀態下才重新渲染 UI，避免搶走使用者的游標
-                        const activeElement = document.activeElement;
-                        const isInputFocused = activeElement && (activeElement.tagName === 'INPUT');
-                        
-                        if (isInitialLoad || !isInputFocused) {
-                            renderTasks();
-                            if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
-                                generateWeeklyTable();
-                            }
-                            updateCurrentInfo();
-                            isInitialLoad = false;
+                        // 渲染介面
+                        renderTasks();
+                        if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
+                            generateWeeklyTable();
                         }
+                        updateCurrentInfo();
+                        isInitialLoad = false;
                     } else if (isInitialLoad) {
-                        // 若雲端完全沒資料，才嘗試搬移本地舊資料
+                        // 若雲端無資料，嘗試搬移本地舊資料
                         migrateLocalToCloud();
                         isInitialLoad = false;
                     }
@@ -451,9 +446,8 @@ async function loginWithGoogle() {
 
             } else {
                 console.log("等待登入中...");
-                // 若登出或未登入，可以在這裡重設介面（選用）
             }
-        }
+        });
                     } else if (isInitialLoad) {
                         // 若雲端無資料，嘗試從 localStorage 拉取並無縫移轉至雲端
                         migrateLocalToCloud();
@@ -481,12 +475,9 @@ async function loginWithGoogle() {
                             btn.innerHTML = `<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天`;
                             refreshIcons();
                         }
-                    }
                 }, (error) => {
                     console.error("Cloud sync error:", error);
                 });
-            }
-        });
 
         // 舊資料移轉邏輯
         function migrateLocalToCloud() {
