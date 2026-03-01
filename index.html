@@ -390,7 +390,7 @@ const initAuth = async () => {
         }
         window.loginWithGoogle = loginWithGoogle;
 
-        // --- 核心身分與雲端同步邏輯 ---
+// --- 核心身分與雲端同步邏輯 ---
         onAuthStateChanged(auth, (user) => {
             currentUser = user;
 
@@ -425,13 +425,29 @@ const initAuth = async () => {
                             document.getElementById('app-name-display').textContent = data.appName;
                         }
                         
-                        // 重新渲染畫面
-                        renderTasks();
-                        if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
-                            generateWeeklyTable();
+                        // 防呆：如果使用者正在打字，不進行重新渲染以免搶走游標
+                        const activeElement = document.activeElement;
+                        const isInputFocused = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
+                        
+                        if (isInitialLoad || !isInputFocused) {
+                            renderTasks();
+                            if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
+                                generateWeeklyTable();
+                            }
+                            updateCurrentInfo();
                         }
-                        updateCurrentInfo();
-                        isInitialLoad = false;
+                        
+                        if (isInitialLoad) {
+                            isInitialLoad = false;
+                            // 雲端資料載入完成，解鎖啟動按鈕
+                            const btn = document.getElementById('start-btn');
+                            if (btn) {
+                                btn.disabled = false;
+                                btn.className = "bg-white text-theme-main px-12 py-4 rounded-full font-black text-xl shadow-xl hover:shadow-white/40 hover:-translate-y-1 transition-all cursor-pointer inline-flex items-center justify-center gap-2";
+                                btn.innerHTML = `<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天`;
+                                refreshIcons();
+                            }
+                        }
                     } else if (isInitialLoad) {
                         // 雲端無資料時搬移本地資料
                         migrateLocalToCloud();
@@ -445,32 +461,6 @@ const initAuth = async () => {
                 console.log("等待登入中...");
             }
         });
-                    
-                    // 防呆：如果使用者正在打字，不進行重新渲染以免搶走游標
-                    const activeElement = document.activeElement;
-                    const isInputFocused = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
-                    
-                    if (isInitialLoad || !isInputFocused) {
-                        renderTasks();
-                        if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
-                            generateWeeklyTable();
-                        }
-                        updateCurrentInfo();
-                    }
-                    
-                    if (isInitialLoad) {
-                        isInitialLoad = false;
-                        // 雲端資料載入完成，解鎖啟動按鈕
-                        const btn = document.getElementById('start-btn');
-                        if (btn) {
-                            btn.disabled = false;
-                            btn.className = "bg-white text-theme-main px-12 py-4 rounded-full font-black text-xl shadow-xl hover:shadow-white/40 hover:-translate-y-1 transition-all cursor-pointer inline-flex items-center justify-center gap-2";
-                            btn.innerHTML = `<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天`;
-                            refreshIcons();
-                        }
-                }, (error) => {
-                    console.error("Cloud sync error:", error);
-                });
 
         // 舊資料移轉邏輯
         function migrateLocalToCloud() {
