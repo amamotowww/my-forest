@@ -77,6 +77,7 @@
         <button id="google-login-btn" onclick="loginWithGoogle()" class="bg-white text-slate-700 px-8 py-4 rounded-full font-bold text-lg shadow-xl hover:bg-slate-50 transition-all inline-flex items-center justify-center gap-3 mb-4">
             <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6">
             使用 Google 帳號登入
+            <p id="user-info" class="hidden text-sm mt-2 opacity-80 font-bold"></p>
         </button>
 
         <button id="start-btn" disabled onclick="initApp()" class="bg-white/70 text-slate-500 px-10 py-4 rounded-full font-black text-xl shadow-xl transition-all cursor-not-allowed inline-flex items-center justify-center gap-3">
@@ -392,45 +393,67 @@ async function loginWithGoogle() {
     }
 }
 
-// 務必將它掛載到 window，這樣 HTML 按鈕才找得到它
-window.loginWithGoogle = loginWithGoogle;
+// --- 核心身分與雲端同步邏輯 ---
         onAuthStateChanged(auth, (user) => {
-    currentUser = user; // 記錄當前使用者身分
+            currentUser = user;
 
-    if (user) {
-        // --- 1. 介面變身指令 ---
-        // 隱藏登入按鈕 👻
-        const loginBtn = document.getElementById('google-login-btn');
-        if (loginBtn) loginBtn.style.display = 'none';
+            if (user) {
+                // 1. 介面變身：隱藏登入按鈕，顯示名牌與解鎖 Play
+                const loginBtn = document.getElementById('google-login-btn');
+                if (loginBtn) loginBtn.style.display = 'none';
 
-        // 顯示使用者名牌 🏷️
-        const userInfo = document.getElementById('user-info');
-        if (userInfo) {
-            userInfo.textContent = `當前登入：${user.displayName}`;
-            userInfo.classList.remove('hidden');
+                const userInfo = document.getElementById('user-info');
+                if (userInfo) {
+                    userInfo.textContent = `當前登入：${user.displayName}`;
+                    userInfo.classList.remove('hidden');
+                }
+
+                const startBtn = document.getElementById('start-btn');
+                if (startBtn) {
+                    startBtn.disabled = false;
+                    startBtn.classList.remove('bg-white/70', 'text-slate-500', 'cursor-not-allowed');
+                    startBtn.classList.add('bg-white', 'text-emerald-600', 'hover:scale-105');
+                    startBtn.innerHTML = '<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天';
+                    if (window.lucide) lucide.createIcons();
+                }
+
+                // 2. 啟動即時雲端同步 (onSnapshot)
+                const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'appData', 'main');
+                onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        state.tasks = data.tasks || [];
+                        state.allPlans = data.allPlans || {};
+                        if (data.appName) {
+                            document.getElementById('app-name-display').textContent = data.appName;
+                        }
+                        
+                        // 只有在非輸入狀態下才重新渲染 UI，避免搶走使用者的游標
+                        const activeElement = document.activeElement;
+                        const isInputFocused = activeElement && (activeElement.tagName === 'INPUT');
+                        
+                        if (isInitialLoad || !isInputFocused) {
+                            renderTasks();
+                            if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
+                                generateWeeklyTable();
+                            }
+                            updateCurrentInfo();
+                            isInitialLoad = false;
+                        }
+                    } else if (isInitialLoad) {
+                        // 若雲端完全沒資料，才嘗試搬移本地舊資料
+                        migrateLocalToCloud();
+                        isInitialLoad = false;
+                    }
+                }, (error) => {
+                    console.error("雲端同步失敗:", error);
+                });
+
+            } else {
+                console.log("等待登入中...");
+                // 若登出或未登入，可以在這裡重設介面（選用）
+            }
         }
-
-        // --- 2. 雲端路徑設定 (你原本的程式碼) ---
-        const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'appData', 'main');
-        console.log("雲端路徑已鎖定：", user.uid);
-
-        // --- 3. 啟動按鈕解鎖 (這是接下來的關鍵！) ---
-        // 我們要在這裡讓 Play 按鈕從灰色變亮，並開放點擊
-        const startBtn = document.getElementById('start-btn');
-        if (startBtn) {
-            startBtn.disabled = false; // 移除禁用狀態
-            startBtn.classList.remove('bg-white/70', 'text-slate-500', 'cursor-not-allowed');
-            startBtn.classList.add('bg-white', 'text-emerald-600', 'hover:scale-105');
-            startBtn.innerHTML = '<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天';
-            // 重新載入圖示
-            if (window.lucide) lucide.createIcons();
-        }
-
-    } else {
-        // 如果沒有登入，確保登入按鈕是顯示的
-        console.log("等待登入中...");
-    }
-});
                     } else if (isInitialLoad) {
                         // 若雲端無資料，嘗試從 localStorage 拉取並無縫移轉至雲端
                         migrateLocalToCloud();
