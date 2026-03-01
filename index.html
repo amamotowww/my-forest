@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>居家辦公高效課表導航儀</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap');
+        body { font-family: 'Noto+Sans+TC', sans-serif; }
+        .timer-active { animation: pulse 2s infinite; }
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.02); opacity: 0.9; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .task-done { text-decoration: line-through; opacity: 0.5; }
+        th, td { min-width: 130px; }
+        .time-col { min-width: 140px; }
+        
+        /* 隱藏捲軸但保留滾動功能以保持版面乾淨 */
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* 青春綠樹主題 CSS 變數 */
+        :root {
+            --theme-bg-1: #bae6fd; --theme-bg-2: #f0f9ff; --theme-bg-3: #cffafe;
+            --theme-text-main: #0369a1; --theme-text-light: #0ea5e9;
+            --theme-btn-1: #3b82f6; --theme-btn-2: #22d3ee;
+            --theme-overlay-1: #3b82f6; --theme-overlay-2: #22d3ee;
+            --theme-break-bg: rgba(56, 189, 248, 0.9);
+            --t-sun: #fef08a; --t-ground1: #86efac; --t-ground2: #4ade80; 
+            --t-trunk: #78350f;
+            --t-leaf1: #10b981; --t-leaf2: #34d399; --t-leaf3: #059669; --t-leaf4: #6ee7b7;
+            --t-fruit1: #ef4444; --t-fruit2: #fb923c;
+        }
+
+        /* 語意化主題 Class */
+        .theme-bg-gradient { background: linear-gradient(135deg, var(--theme-bg-1), var(--theme-bg-2), var(--theme-bg-3)); }
+        .theme-overlay-gradient { background: linear-gradient(135deg, var(--theme-overlay-1), var(--theme-overlay-2)); }
+        .theme-break-bg { background-color: var(--theme-break-bg); }
+        .theme-btn-gradient { background: linear-gradient(to right, var(--theme-btn-1), var(--theme-btn-2)); }
+        .text-theme-main { color: var(--theme-text-main); }
+        .text-theme-light { color: var(--theme-text-light); }
+        .border-theme { border-color: var(--theme-text-light); }
+        .focus-theme:focus { border-color: var(--theme-text-light); outline: none; }
+        .anime-gradient-text { background: linear-gradient(135deg, var(--theme-text-main), var(--theme-text-light)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        ::selection { background-color: var(--theme-bg-1); color: var(--theme-text-main); }
+
+        /* 富文本編輯器自訂樣式 */
+        .rich-editor { white-space: pre-wrap; word-break: break-word; }
+        .rich-editor ul { list-style-type: disc !important; padding-left: 1.5rem !important; margin-top: 0.25rem; margin-bottom: 0.25rem; }
+        .rich-editor ol { list-style-type: decimal !important; padding-left: 1.5rem !important; margin-top: 0.25rem; margin-bottom: 0.25rem; }
+        .rich-editor b, .rich-editor strong { font-weight: 900 !important; color: var(--theme-text-main); } 
+        .rich-editor i, .rich-editor em { font-style: italic !important; }
+        .rich-editor:empty:before { content: attr(data-placeholder); color: #cbd5e1; pointer-events: none; }
+
+        /* 日系毛玻璃特效 */
+        .glass-card { background: rgba(255, 255, 255, 0.75); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); border: 1px solid rgba(255, 255, 255, 0.9); box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.05); }
+        .glass-nav { background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.9); box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05); }
+        
+        /* 懸浮微動效 */
+        .float-slow { animation: float 6s ease-in-out infinite; }
+        @keyframes float { 0% { transform: translateY(0px); } 50% { transform: translateY(-8px); } 100% { transform: translateY(0px); } }
+    </style>
+</head>
+<body class="theme-bg-gradient min-h-screen pb-20 text-slate-700 bg-fixed font-medium transition-colors duration-1000">
+
+    <!-- 啟動遮罩 -->
+    <div id="start-overlay" class="fixed inset-0 z-[100] theme-overlay-gradient flex flex-col items-center justify-center text-white p-6 text-center">
+        
+        <i id="start-icon" data-lucide="sparkles" class="w-20 h-20 mb-6 text-white drop-shadow-lg float-slow"></i>
+        <h1 class="text-4xl font-black mb-4 drop-shadow-md tracking-wide" id="start-title">任務森林</h1>
+        <p class="mb-8 opacity-90 max-w-md font-bold text-white/90">陽光正好，微風不燥。將繁雜的思緒清空，<br>帶著滿滿的活力，迎接今天的第一個挑戰吧！</p>
+        
+        <button id="google-login-btn" onclick="loginWithGoogle()" class="bg-white text-slate-700 px-8 py-4 rounded-full font-bold text-lg shadow-xl hover:bg-slate-50 transition-all inline-flex items-center justify-center gap-3 mb-4">
+            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6">
+            使用 Google 帳號登入
+        </button>
+
+        <button id="start-btn" disabled onclick="initApp()" class="bg-white/70 text-slate-500 px-10 py-4 rounded-full font-black text-xl shadow-xl transition-all cursor-not-allowed inline-flex items-center justify-center gap-3">
+            <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i> 連結雲端大腦中...
+        </button>
+    </div>
+
+    <!-- 強制下課遮罩 -->
+    <div id="break-overlay" class="fixed inset-0 z-[90] theme-break-bg backdrop-blur-xl flex flex-col items-center justify-center text-white p-6 text-center transition-all duration-700 opacity-0 pointer-events-none">
+        <i data-lucide="sun" class="w-24 h-24 mb-6 float-slow text-yellow-200 drop-shadow-lg"></i>
+        <h2 class="text-5xl md:text-7xl font-black mb-6 tracking-widest drop-shadow-md">中場休息</h2>
+        <p class="text-xl md:text-3xl font-bold mb-12 leading-relaxed text-white">去窗邊看看風景、喝口水吧<br><span class="text-white/80">放下手機，讓眼睛放鬆！</span></p>
+        <div class="text-sm opacity-90 mb-2 tracking-widest uppercase font-bold">距離下節課還有</div>
+        <div class="text-8xl md:text-9xl font-black tabular-nums tracking-tighter text-white drop-shadow-xl" id="break-timer-display">10:00</div>
+    </div>
+
+    <!-- 名稱編輯自訂彈窗 -->
+    <div id="name-edit-modal" class="fixed inset-0 z-[110] bg-slate-900/30 backdrop-blur-sm flex items-center justify-center opacity-0 pointer-events-none transition-all duration-300">
+        <div class="glass-card rounded-[2rem] p-8 w-full max-w-sm transform scale-95 transition-transform duration-300" id="name-edit-box">
+            <h3 class="text-lg font-bold text-theme-main mb-4 flex items-center gap-2"><i data-lucide="edit-3" class="w-5 h-5"></i> 為你的頻道命名</h3>
+            <input type="text" id="app-name-input" class="w-full bg-white border-2 border-slate-100 rounded-2xl px-5 py-3 focus-theme mb-6 transition-colors font-bold text-theme-main shadow-inner" placeholder="輸入新的名稱..." onkeypress="if(event.key==='Enter')saveAppName()">
+            <div class="flex justify-end gap-3">
+                <button onclick="closeNameModal()" class="px-5 py-2.5 text-slate-500 hover:bg-slate-100 rounded-xl font-bold transition-colors">取消</button>
+                <button onclick="saveAppName()" class="px-5 py-2.5 theme-btn-gradient text-white rounded-xl font-bold transition-all shadow-md hover:-translate-y-0.5">儲存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 導覽列 -->
+    <nav class="glass-nav max-w-7xl mx-auto mt-4 mb-6 rounded-full text-slate-700 p-3 sticky top-4 z-50 transition-all px-6">
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4">
+            <h1 class="text-xl font-black flex items-center gap-2 group cursor-pointer hover:opacity-80 transition-colors anime-gradient-text" onclick="editAppName()" title="點擊修改名稱">
+                <i id="nav-icon" data-lucide="sparkles" class="text-theme-light"></i>
+                <span id="app-name-display">任務森林</span>
+                <i data-lucide="edit-3" class="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400"></i>
+                <i id="cloud-sync-icon" data-lucide="cloud-lightning" class="w-4 h-4 ml-1 text-green-500 opacity-0 transition-opacity" title="已同步至雲端"></i>
+            </h1>
+            <div class="flex gap-2 bg-white/40 p-1.5 rounded-full shadow-inner border border-white/50">
+                <button onclick="switchTab('today')" id="btn-today" class="px-6 py-2 rounded-full theme-btn-gradient shadow-md font-bold text-sm md:text-base transition-all text-white">即時課表</button>
+                <button onclick="switchTab('weekly')" id="btn-weekly" class="px-6 py-2 rounded-full hover:bg-white text-sm md:text-base transition-all text-slate-500 hover:text-theme-main font-bold">每週課表</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto p-4 md:p-8 pt-0">
+        
+        <!-- 今日課表與計時器 (Tab 1) -->
+        <div id="tab-today" class="space-y-6">
+            
+            <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+                <!-- 左側：頂部計時器卡片 -->
+                <div id="timer-card" class="lg:col-span-3 glass-card rounded-[2.5rem] p-6 md:p-10 text-center relative overflow-hidden flex flex-col justify-center border-white/80">
+                    
+                    <div class="flex justify-center items-center gap-2 mb-4 relative z-10">
+                        <div class="w-2.5 h-2.5 bg-green-400 rounded-full animate-pulse shadow-[0_0_12px_rgba(74,222,128,0.8)]"></div>
+                        <span class="text-xs font-bold text-theme-light opacity-80 tracking-widest">已與中原標準時間同步</span>
+                    </div>
+                    
+                    <div id="current-period-label" class="text-theme-main font-black mb-2 uppercase tracking-widest text-sm md:text-base relative z-10">載入中...</div>
+                    <div id="timer-label" class="text-slate-400 font-bold text-sm tracking-widest mb-1 mt-2 relative z-10">距離下課還有</div>
+                    <div id="timer-display" class="text-7xl md:text-8xl font-black text-slate-800 mb-6 tabular-nums tracking-tighter relative z-10 drop-shadow-sm">--:--</div>
+                    
+                    <div class="inline-block bg-white/80 border border-white shadow-sm px-8 py-5 rounded-[2rem] w-full max-w-xl mx-auto relative z-10">
+                        <div class="text-xs font-bold text-theme-light mb-2">當前大任務</div>
+                        <div id="current-task-display" class="text-xl md:text-2xl text-theme-main font-black tracking-wide">「請先在每週課表填入計畫」</div>
+                    </div>
+                </div>
+
+                <!-- 右側：專注之樹遊戲化區塊 -->
+                <div id="tree-card" class="lg:col-span-2 glass-card rounded-[2.5rem] p-6 flex flex-col items-center justify-center relative overflow-hidden border-white/80">
+                    
+                    <h3 class="text-theme-main font-black tracking-widest mb-2 z-10 flex items-center gap-2">
+                        <i id="tree-title-icon" data-lucide="sparkles" class="w-5 h-5 text-theme-light"></i> 你的<span id="tree-name-display">青春之樹</span>
+                    </h3>
+                    
+                    <!-- SVG 動態樹木繪製區 -->
+                    <div class="w-48 h-48 relative z-10 mb-4 float-slow drop-shadow-lg">
+                        <svg viewBox="0 0 100 100" class="w-full h-full">
+                            <!-- 太陽/月亮 -->
+                            <circle cx="85" cy="15" r="14" fill="var(--t-sun)" class="animate-pulse" opacity="0.9" filter="blur(2px)"/>
+                            <circle cx="85" cy="15" r="8" fill="#ffffff" opacity="1" />
+                            <!-- 泥土/草地 -->
+                            <path d="M 10 95 Q 50 80 90 95 L 90 100 L 10 100 Z" fill="var(--t-ground1)" class="transition-colors duration-1000"/>
+                            <path d="M 15 97 Q 50 85 85 97 L 85 100 L 15 100 Z" fill="var(--t-ground2)" class="transition-colors duration-1000"/>
+                            <!-- 樹幹 -->
+                            <rect id="tree-trunk" x="47" y="95" width="6" height="0" fill="var(--t-trunk)" rx="3" class="transition-all duration-1000 ease-in-out" />
+                            <!-- 樹葉群 -->
+                            <circle class="tree-leaf transition-all duration-1000 ease-in-out" data-scale="1" data-yoffset="0" cx="50" cy="95" r="0" fill="var(--t-leaf1)" />
+                            <circle class="tree-leaf transition-all duration-1000 ease-in-out" data-scale="0.85" data-yoffset="10" cx="32" cy="95" r="0" fill="var(--t-leaf2)" />
+                            <circle class="tree-leaf transition-all duration-1000 ease-in-out" data-scale="0.9" data-yoffset="8" cx="68" cy="95" r="0" fill="var(--t-leaf3)" />
+                            <circle class="tree-leaf transition-all duration-1000 ease-in-out" data-scale="0.75" data-yoffset="-12" cx="50" cy="95" r="0" fill="var(--t-leaf4)" opacity="0.9"/>
+                            <!-- 果實/花瓣 -->
+                            <circle class="tree-fruit transition-all duration-1000 ease-in-out opacity-0" data-yoffset="-5" cx="40" cy="95" r="3.5" fill="var(--t-fruit1)" />
+                            <circle class="tree-fruit transition-all duration-1000 ease-in-out opacity-0" data-yoffset="8" cx="62" cy="95" r="3.5" fill="var(--t-fruit2)" />
+                            <circle class="tree-fruit transition-all duration-1000 ease-in-out opacity-0" data-yoffset="15" cx="48" cy="95" r="4" fill="var(--t-fruit1)" />
+                            <circle class="tree-fruit transition-all duration-1000 ease-in-out opacity-0" data-yoffset="-12" cx="55" cy="95" r="3" fill="var(--t-fruit2)" />
+                        </svg>
+                    </div>
+
+                    <div class="z-10 bg-white/80 backdrop-blur px-5 py-3 rounded-2xl shadow-sm border border-white w-full max-w-xs text-center">
+                        <div id="tree-level-text" class="text-theme-main font-black text-lg drop-shadow-sm">💤 尚未開始</div>
+                        <div class="w-full bg-slate-200/50 shadow-inner rounded-full h-2.5 mt-2 mb-1.5 overflow-hidden border border-white">
+                            <div id="tree-progress-bar" class="theme-btn-gradient h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                        <div id="tree-rate-text" class="text-theme-light font-bold text-xs">今日大任務安排進度：0/8</div>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-4 text-center z-10 font-bold leading-relaxed">有安排「大任務」的課節，時間推進時就會化作樹木成長的養分！</p>
+                </div>
+            </div>
+
+            <!-- 任務細項 (即時課表) -->
+            <div class="glass-card rounded-[2.5rem] overflow-hidden border-white/80">
+                <div class="p-5 bg-white/50 border-b border-white flex justify-between items-center backdrop-blur-sm">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="check-square" class="text-theme-light"></i>
+                        <h2 class="font-bold text-theme-main">本節細項任務清單</h2>
+                    </div>
+                    <span id="task-count-label" class="text-xs font-bold bg-white text-theme-main px-4 py-1.5 rounded-full shadow-sm">0 待辦</span>
+                </div>
+                <div id="task-list" class="divide-y divide-slate-100/50 p-3 min-h-[150px]">
+                    <!-- 任務列表由 JS 動態生成 -->
+                </div>
+                <div class="p-4 bg-white/40 border-t border-white flex gap-2 rounded-b-[2.5rem]">
+                    <input type="text" id="new-task-input" onkeypress="if(event.key==='Enter')addTask()" placeholder="輸入想完成的步驟，打勾可確認進度..." class="flex-1 border-2 border-white bg-white/80 rounded-full px-5 py-2.5 focus-theme transition-colors shadow-inner text-theme-main font-medium">
+                    <button onclick="addTask()" class="theme-btn-gradient text-white px-8 py-2.5 rounded-full font-bold hover:shadow-lg hover:-translate-y-0.5 transition-all">新增</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 每週課表 (Tab 2) -->
+        <div id="tab-weekly" class="hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <!-- 上方控制列與歷史切換 -->
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 pb-2">
+                <div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <h2 class="text-2xl font-black text-slate-700 anime-gradient-text">每週課表與任務同步視圖</h2>
+                        <div class="flex bg-white/60 border border-white rounded-full p-1 shadow-sm items-center">
+                            <button onclick="changeWeek(-7)" class="p-1.5 rounded-full hover:bg-white text-slate-500 hover:text-theme-main transition-all" title="上一週"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                            <button onclick="goThisWeek()" class="px-4 py-1 text-sm font-bold text-theme-light hover:bg-white rounded-full transition-all">回到本週</button>
+                            <button onclick="changeWeek(7)" class="p-1.5 rounded-full hover:bg-white text-slate-500 hover:text-theme-main transition-all" title="下一週"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                        </div>
+                    </div>
+                    <p id="week-date-range" class="text-theme-main font-bold text-sm tracking-widest bg-white/80 inline-block px-4 py-1.5 rounded-full border border-white shadow-sm">
+                        載入中...
+                    </p>
+                </div>
+            </div>
+
+            <!-- Emoji 與特殊符號工具列 -->
+            <div class="flex flex-wrap items-center gap-2 mb-4 p-2 glass-card rounded-2xl relative z-10 border-white/80">
+                <span class="text-xs text-theme-main font-black px-3 whitespace-nowrap">常用符號快捷鍵 (點擊插入游標處)</span>
+                
+                <div class="flex bg-white/60 border border-white rounded-xl p-1 shadow-inner gap-1">
+                    <button onmousedown="event.preventDefault(); insertEmoji('✅')" class="hover:bg-white p-1.5 rounded-lg text-lg transition-transform hover:scale-110" title="完成">✅</button>
+                    <button onmousedown="event.preventDefault(); insertEmoji('❗')" class="hover:bg-white p-1.5 rounded-lg text-lg transition-transform hover:scale-110" title="重要">❗</button>
+                    <button onmousedown="event.preventDefault(); insertEmoji('📌')" class="hover:bg-white p-1.5 rounded-lg text-lg transition-transform hover:scale-110" title="釘選">📌</button>
+                    <button onmousedown="event.preventDefault(); insertEmoji('💡')" class="hover:bg-white p-1.5 rounded-lg text-lg transition-transform hover:scale-110" title="點子">💡</button>
+                    <button onmousedown="event.preventDefault(); insertEmoji('🎯')" class="hover:bg-white p-1.5 rounded-lg text-lg transition-transform hover:scale-110" title="目標">🎯</button>
+                    <button onmousedown="event.preventDefault(); insertEmoji('🔥')" class="hover:bg-white p-1.5 rounded-lg text-lg transition-transform hover:scale-110" title="急迫">🔥</button>
+                    <button onmousedown="event.preventDefault(); insertEmoji('💻')" class="hover:bg-white p-1.5 rounded-lg text-lg transition-transform hover:scale-110" title="工作">💻</button>
+                    <div class="w-px h-6 bg-white mx-1 my-auto"></div>
+                    <button onmousedown="event.preventDefault(); insertEmoji('★')" class="hover:bg-white p-1.5 rounded-lg text-theme-main font-bold" title="星號">★</button>
+                    <button onmousedown="event.preventDefault(); insertEmoji('【】')" class="hover:bg-white p-1.5 rounded-lg text-theme-main font-bold" title="括號">【】</button>
+                    <button onmousedown="event.preventDefault(); insertEmoji('→')" class="hover:bg-white p-1.5 rounded-lg text-theme-main font-bold" title="箭頭">→</button>
+                </div>
+                <span class="text-xs text-slate-500 font-medium ml-2">※ 提示：可直接在下方「新增細項」輸入框中打字並按 Enter，即可同步至即時課表。</span>
+            </div>
+
+            <div class="overflow-x-auto glass-card rounded-[2rem] border-white/80">
+                <table class="w-full border-collapse">
+                    <thead id="weekly-thead">
+                        <!-- 由 JS 動態生成標題與歷史樹木圖示 -->
+                    </thead>
+                    <tbody id="weekly-body">
+                        <!-- 由 JS 生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- 將模組改為 type="module" 以引入 Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // 將重要函數導出到 global window 物件，確保 HTML 中 on 事件可以順利觸發
+        window.initApp = initApp;
+        window.editAppName = editAppName;
+        window.closeNameModal = closeNameModal;
+        window.saveAppName = saveAppName;
+        window.insertEmoji = insertEmoji;
+        window.addTask = addTask;
+        window.addCellTask = addCellTask;
+        window.toggleTask = toggleTask;
+        window.deleteTask = deleteTask;
+        window.moveTask = moveTask;
+        window.switchTab = switchTab;
+        window.changeWeek = changeWeek;
+        window.goThisWeek = goThisWeek;
+        window.handleDragStart = handleDragStart;
+        window.handleDragEnd = handleDragEnd;
+        window.handleDragOver = handleDragOver;
+        window.handleDragLeave = handleDragLeave;
+        window.handleDrop = handleDrop;
+        window.updateWeeklyPlan = updateWeeklyPlan;
+
+        // --- 核心狀態與工具邏輯 ---
+        function getWeekStart(date) {
+            const d = new Date(date);
+            const day = d.getDay();
+            const diff = d.getDate() - day;
+            return new Date(d.setDate(diff));
+        }
+
+        function formatDateKey(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        function formatDisplayDate(date) {
+            const y = date.getFullYear();
+            const m = String(date.getMonth() + 1).padStart(2, '0');
+            const d = String(date.getDate()).padStart(2, '0');
+            return `${y}/${m}/${d}`;
+        }
+
+        function addDaysToDateKey(dateKey, days) {
+            const d = new Date(dateKey);
+            d.setDate(d.getDate() + days);
+            return formatDateKey(d);
+        }
+
+        function getWeekRangeDisplay(dateKey) {
+            const startD = new Date(dateKey);
+            const endD = new Date(dateKey);
+            endD.setDate(endD.getDate() + 6);
+            return `${formatDisplayDate(startD)} - ${formatDisplayDate(endD)}`;
+        }
+
+        const todayDateObj = new Date();
+        const actualWeekStartKey = formatDateKey(getWeekStart(todayDateObj));
+        const todayDateKey = formatDateKey(todayDateObj);
+
+        // 初始化本地狀態
+        let state = {
+            mode: 'standby', 
+            currentPeriod: 1,
+            tasks: [],
+            allPlans: {},
+            viewingWeek: actualWeekStartKey,
+            actualWeek: actualWeekStartKey
+        };
+
+        const timeConfig = [
+            { id: 1, start: "09:00", end: "09:50", breakStart: "09:50", breakEnd: "10:00" },
+            { id: 2, start: "10:00", end: "10:50", breakStart: "10:50", breakEnd: "11:00" },
+            { id: 3, start: "11:00", end: "11:50", breakStart: "11:50", breakEnd: "12:00" },
+            { id: 4, start: "12:00", end: "12:50", breakStart: "12:50", breakEnd: "14:20" }, 
+            { id: 5, start: "14:20", end: "15:10", breakStart: "15:10", breakEnd: "15:20" },
+            { id: 6, start: "15:20", end: "16:10", breakStart: "16:10", breakEnd: "16:20" },
+            { id: 7, start: "16:20", end: "17:10", breakStart: "17:10", breakEnd: "17:20" },
+            { id: 8, start: "17:20", end: "18:10", breakStart: "18:10", breakEnd: "18:20" }
+        ].map(c => {
+            const parseSecs = (t) => {
+                const [h, m] = t.split(':').map(Number);
+                return h * 3600 + m * 60;
+            };
+            return { ...c, startSecs: parseSecs(c.start), endSecs: parseSecs(c.end), breakEndSecs: parseSecs(c.breakEnd) };
+        });
+
+        // -----------------------------------------------------
+        // Firebase 雲端大腦架構與同步機制
+        // -----------------------------------------------------
+        const firebaseConfig = {
+  apiKey: "AIzaSyBnTrFzw-2lHHLhj2JqNiSnqP_Rjqis2uc",
+  authDomain: "my-forest-6e9b3.firebaseapp.com",
+  projectId: "my-forest-6e9b3",
+  storageBucket: "my-forest-6e9b3.firebasestorage.app",
+  messagingSenderId: "319896396642",
+  appId: "1:319896396642:web:7278964aec5763cbd6823b"
+};
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = 'my-task-forest'; // my-forest-6e9b3
+
+        let currentUser = null;
+        let isInitialLoad = true;
+
+        const initAuth = async () => {
+    console.log("導航儀已就緒，請點擊 Google 登入以開啟雲端同步。");
+};
+
+        // 啟動身分驗證
+        initAuth();
+async function loginWithGoogle() {
+    try {
+        const provider = new GoogleAuthProvider();
+        // 這是核心！它會彈出 Google 登入視窗
+        const result = await signInWithPopup(auth, provider);
+        console.log("登入成功！使用者：", result.user.displayName);
+        
+        // 登入成功後，隱藏登入按鈕，準備讓使用者點擊 Play
+        document.getElementById('google-login-btn').style.display = 'none';
+        
+    } catch (error) {
+        console.error("登入失敗：", error.message);
+        alert("登入失敗，請檢查 Firebase 後台是否已開啟 Google 登入功能。");
+    }
+}
+
+// 務必將它掛載到 window，這樣 HTML 按鈕才找得到它
+window.loginWithGoogle = loginWithGoogle;
+        onAuthStateChanged(auth, (user) => {
+            currentUser = user;
+            if (user) {
+                // 堅守規則：使用標準專屬路徑儲存個人的所有資料
+                const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'appData', 'main');
+                
+                onSnapshot(docRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        state.tasks = data.tasks || [];
+                        state.allPlans = data.allPlans || {};
+                        if (!state.allPlans[state.viewingWeek]) state.allPlans[state.viewingWeek] = {};
+                        
+                        if (data.appName) {
+                            document.getElementById('app-name-display').textContent = data.appName;
+                        }
+                    } else if (isInitialLoad) {
+                        // 若雲端無資料，嘗試從 localStorage 拉取並無縫移轉至雲端
+                        migrateLocalToCloud();
+                    }
+                    
+                    // 防呆：如果使用者正在打字，不進行重新渲染以免搶走游標
+                    const activeElement = document.activeElement;
+                    const isInputFocused = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
+                    
+                    if (isInitialLoad || !isInputFocused) {
+                        renderTasks();
+                        if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
+                            generateWeeklyTable();
+                        }
+                        updateCurrentInfo();
+                    }
+                    
+                    if (isInitialLoad) {
+                        isInitialLoad = false;
+                        // 雲端資料載入完成，解鎖啟動按鈕
+                        const btn = document.getElementById('start-btn');
+                        if (btn) {
+                            btn.disabled = false;
+                            btn.className = "bg-white text-theme-main px-12 py-4 rounded-full font-black text-xl shadow-xl hover:shadow-white/40 hover:-translate-y-1 transition-all cursor-pointer inline-flex items-center justify-center gap-2";
+                            btn.innerHTML = `<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天`;
+                            refreshIcons();
+                        }
+                    }
+                }, (error) => {
+                    console.error("Cloud sync error:", error);
+                });
+            }
+        });
+
+        // 舊資料移轉邏輯
+        function migrateLocalToCloud() {
+            const localTasks = JSON.parse(localStorage.getItem('myTasks_v2')) || [];
+            const localPlans = JSON.parse(localStorage.getItem('myWeeklyPlans_v3')) || {};
+            const localAppName = localStorage.getItem('myAppName_v1') || '任務森林';
+            
+            state.tasks = localTasks;
+            state.allPlans = localPlans;
+            if (!state.allPlans[state.viewingWeek]) state.allPlans[state.viewingWeek] = {};
+            document.getElementById('app-name-display').textContent = localAppName;
+            
+            syncToCloud();
+        }
+
+        // 推送至雲端核心
+        function syncToCloud() {
+            if (!currentUser) return;
+            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'appData', 'main');
+            
+            // 加入浮動同步提示
+            const syncIcon = document.getElementById('cloud-sync-icon');
+            if(syncIcon) {
+                syncIcon.classList.remove('opacity-0');
+                setTimeout(() => syncIcon.classList.add('opacity-0'), 1000);
+            }
+
+            setDoc(docRef, {
+                tasks: state.tasks,
+                allPlans: state.allPlans,
+                appName: document.getElementById('app-name-display').textContent
+            }, { merge: true }).catch(err => console.error("Cloud save error:", err));
+        }
+        // -----------------------------------------------------
+
+        // -----------------------------------------------------
+        // 音效引擎 (真實吉他與鳥鳴)
+        // -----------------------------------------------------
+        let audioCtx;
+        const audioPlayer = new Audio();
+        
+        // 吉他 E (青春流行) - 上課鐘聲 (木吉他掃弦聲)
+        const startBellSrc = 'https://actions.google.com/sounds/v1/foley/acoustic_guitar_strum.ogg'; 
+        // 鳥鳴 B (溪畔翠鳥) - 下課鐘聲 (帶水流聲的鳥鳴)
+        const endBellSrc = 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg'; 
+
+        function playBell(type) {
+            try {
+                if (type === 'start') {
+                    audioPlayer.src = startBellSrc; 
+                    audioPlayer.play().catch(e => playSynthesizedBell('start'));
+                } else {
+                    audioPlayer.src = endBellSrc;
+                    audioPlayer.play().catch(e => playSynthesizedBell('end'));
+                }
+            } catch (e) {
+                playSynthesizedBell(type);
+            }
+        }
+
+        // 安全備案：電子合成音
+        function playSynthesizedBell(type) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            
+            osc.type = 'sine';
+            if (type === 'start') {
+                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.3);
+                osc.frequency.exponentialRampToValueAtTime(523.25, audioCtx.currentTime + 1.2);
+            } else {
+                osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(1500, audioCtx.currentTime + 0.2);
+                osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.6);
+            }
+
+            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
+            
+            osc.connect(gain); 
+            gain.connect(audioCtx.destination);
+            osc.start(); 
+            osc.stop(audioCtx.currentTime + 1.5);
+        }
+        // -----------------------------------------------------
+
+        let clockInterval;
+        let isFirstTick = true;
+
+        // 初始化 UI 工具
+        if (typeof lucide !== 'undefined') lucide.createIcons();
+        function refreshIcons() {
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        }
+
+        function editAppName() {
+            const currentName = document.getElementById('app-name-display').textContent;
+            const input = document.getElementById('app-name-input');
+            input.value = currentName;
+            const modal = document.getElementById('name-edit-modal');
+            const box = document.getElementById('name-edit-box');
+            modal.classList.remove('opacity-0', 'pointer-events-none');
+            box.classList.remove('scale-95');
+            box.classList.add('scale-100');
+            setTimeout(() => { input.focus(); input.select(); }, 100);
+        }
+
+        function closeNameModal() {
+            const modal = document.getElementById('name-edit-modal');
+            const box = document.getElementById('name-edit-box');
+            modal.classList.add('opacity-0', 'pointer-events-none');
+            box.classList.remove('scale-100');
+            box.classList.add('scale-95');
+        }
+
+        function saveAppName() {
+            const newName = document.getElementById('app-name-input').value.trim();
+            if (newName !== "") {
+                document.getElementById('app-name-display').textContent = newName;
+                syncToCloud();
+            }
+            closeNameModal();
+        }
+
+        function insertEmoji(emoji) {
+            const activeElem = document.activeElement;
+            if (activeElem && activeElem.tagName === 'INPUT' && activeElem.type === 'text') {
+                const start = activeElem.selectionStart;
+                const end = activeElem.selectionEnd;
+                const text = activeElem.value;
+                activeElem.value = text.substring(0, start) + emoji + text.substring(end);
+                activeElem.selectionStart = activeElem.selectionEnd = start + emoji.length;
+            }
+        }
+
+        function initApp() {
+            document.getElementById('start-overlay').style.display = 'none';
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            
+            refreshIcons();
+            generateWeeklyTable();
+            syncClock();
+            clockInterval = setInterval(syncClock, 1000);
+        }
+
+        function syncClock() {
+            const now = new Date();
+            const nowSecs = now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+            
+            let foundMode = 'off';
+            let foundPeriod = state.currentPeriod; 
+            let remainingSecs = 0;
+
+            if (nowSecs < timeConfig[0].startSecs) {
+                foundMode = 'standby';
+                remainingSecs = timeConfig[0].startSecs - nowSecs;
+                foundPeriod = 1;
+            } else if (nowSecs >= timeConfig[timeConfig.length - 1].breakEndSecs) {
+                foundMode = 'off';
+                remainingSecs = 0;
+            } else {
+                for (let c of timeConfig) {
+                    if (nowSecs >= c.startSecs && nowSecs < c.endSecs) {
+                        foundMode = 'work'; foundPeriod = c.id; remainingSecs = c.endSecs - nowSecs; break;
+                    } else if (nowSecs >= c.endSecs && nowSecs < c.breakEndSecs) {
+                        foundMode = 'break'; foundPeriod = c.id; remainingSecs = c.breakEndSecs - nowSecs; break;
+                    }
+                }
+            }
+
+            if (isFirstTick) {
+                state.mode = foundMode; state.currentPeriod = foundPeriod;
+                updateCurrentInfo(); toggleBreakOverlay(foundMode === 'break');
+                isFirstTick = false;
+            } else if (state.mode !== foundMode || state.currentPeriod !== foundPeriod) {
+                if (foundMode === 'work') { playBell('start'); toggleBreakOverlay(false); }
+                else if (foundMode === 'break') { playBell('end'); toggleBreakOverlay(true); }
+                else { toggleBreakOverlay(false); }
+                
+                state.mode = foundMode; state.currentPeriod = foundPeriod;
+                updateCurrentInfo();
+            }
+            updateTimerDisplay(remainingSecs, foundMode);
+        }
+
+        function updateTimerDisplay(totalSecs, mode) {
+            const mins = Math.floor(totalSecs / 60);
+            const secs = totalSecs % 60;
+            const displayStr = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            
+            const timerLabel = document.getElementById('timer-label');
+            const timerDisplay = document.getElementById('timer-display');
+            const breakDisplay = document.getElementById('break-timer-display');
+
+            if (mode === 'standby') {
+                timerLabel.textContent = "距離航行開始還有"; timerDisplay.textContent = displayStr;
+                document.title = `等待出發 (${displayStr})`;
+            } else if (mode === 'off') {
+                timerLabel.textContent = "今日已結束航行"; timerDisplay.textContent = "--:--";
+                document.title = "已下班 - 放鬆時間";
+            } else if (mode === 'work') {
+                timerLabel.textContent = "距離下課還有"; timerDisplay.textContent = displayStr;
+                document.title = `(${displayStr}) 專注中...`;
+            } else if (mode === 'break') {
+                timerLabel.textContent = "距離上課還有"; timerDisplay.textContent = displayStr;
+                breakDisplay.textContent = displayStr; 
+                document.title = `(${displayStr}) 休息中`;
+            }
+        }
+
+        function toggleBreakOverlay(show) {
+            const overlay = document.getElementById('break-overlay');
+            if (show) overlay.classList.remove('opacity-0', 'pointer-events-none');
+            else overlay.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        function updateCurrentInfo() {
+            const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            const today = new Date().getDay();
+            const currentWeekPlan = state.allPlans[state.actualWeek] || {};
+            
+            let rawPlan = currentWeekPlan[today]?.[state.currentPeriod];
+            let plan = "今日此節尚未排課";
+            if (typeof rawPlan === 'string' && rawPlan.trim() !== '') plan = rawPlan;
+            else if (rawPlan && rawPlan.main && rawPlan.main.trim() !== '') plan = rawPlan.main;
+            
+            const label = document.getElementById('current-period-label');
+            const taskDisplay = document.getElementById('current-task-display');
+
+            if (state.mode === 'standby') {
+                label.textContent = `尚未上班 (今天是週${dayNames[today]})`;
+                taskDisplay.textContent = "感受早晨的光影與微風";
+            } else if (state.mode === 'off') {
+                label.textContent = `今日已下班 (週${dayNames[today]})`;
+                taskDisplay.textContent = "去散步聽首喜歡的歌吧！";
+            } else {
+                label.textContent = `第 ${state.currentPeriod} 節課 (週${dayNames[today]})`;
+                taskDisplay.textContent = plan;
+            }
+            renderTasks();
+            updateTree();
+        }
+
+        // --- 全新核心邏輯：大任務決定樹木等級 ---
+        function getTreeLevel(weekKey, dayIndex) {
+            const targetDateKey = addDaysToDateKey(weekKey, dayIndex);
+            const planObj = state.allPlans[weekKey]?.[dayIndex] || {};
+            
+            let periodsToEvaluate = 0;
+            
+            if (targetDateKey < todayDateKey) {
+                periodsToEvaluate = 8;
+            } else if (targetDateKey > todayDateKey) {
+                periodsToEvaluate = 0;
+            } else {
+                if (state.mode === 'standby') periodsToEvaluate = 0;
+                else if (state.mode === 'off') periodsToEvaluate = 8;
+                else periodsToEvaluate = state.currentPeriod;
+            }
+
+            let level = 0;
+            for (let p = 1; p <= periodsToEvaluate; p++) {
+                let rawPlan = planObj[p];
+                let mainText = "";
+                if (typeof rawPlan === 'string') mainText = rawPlan;
+                else if (rawPlan && rawPlan.main) mainText = rawPlan.main;
+                
+                if (mainText.trim() !== "") {
+                    level++;
+                }
+            }
+            return Math.min(8, Math.max(0, level));
+        }
+
+        function updateTree() {
+            const level = getTreeLevel(state.actualWeek, new Date().getDay());
+
+            const treeStages = ["💤 尚未開始", "🌰 播下一顆種子", "🌱 冒出青春的新芽", "🌿 稚嫩的幼苗", "🪴 成長中的小樹", "🎋 迎著陽光的樹幹", "🌲 充滿活力的青木", "🌳 茂盛遮蔭的巨木", "🍎 結出豐碩的果實"];
+            const treeData = [
+                { trunk: 0, r: 0, y: 95, f: 0 }, 
+                { trunk: 5, r: 0, y: 90, f: 0 }, 
+                { trunk: 15, r: 8, y: 80, f: 0 }, 
+                { trunk: 25, r: 15, y: 70, f: 0 }, 
+                { trunk: 35, r: 22, y: 60, f: 0 }, 
+                { trunk: 45, r: 28, y: 50, f: 0 }, 
+                { trunk: 55, r: 35, y: 40, f: 0 }, 
+                { trunk: 65, r: 40, y: 30, f: 0 }, 
+                { trunk: 65, r: 40, y: 30, f: 1 }  
+            ];
+            
+            const currentData = treeData[level];
+            document.getElementById('tree-level-text').textContent = `階段 ${level}/8：${treeStages[level]}`;
+            document.getElementById('tree-rate-text').textContent = `今日大任務進度：${level}/8`;
+            document.getElementById('tree-progress-bar').style.width = `${(level / 8) * 100}%`;
+            
+            const trunk = document.getElementById('tree-trunk');
+            trunk.setAttribute('height', currentData.trunk);
+            trunk.setAttribute('y', 95 - currentData.trunk);
+            
+            document.querySelectorAll('.tree-leaf').forEach(leaf => {
+                const scale = Number(leaf.dataset.scale) || 1;
+                const offset = Number(leaf.dataset.yoffset) || 0;
+                leaf.setAttribute('r', currentData.r * scale);
+                leaf.setAttribute('cy', currentData.y + offset);
+            });
+            
+            document.querySelectorAll('.tree-fruit').forEach(fruit => {
+                const offset = Number(fruit.dataset.yoffset) || 0;
+                fruit.style.opacity = currentData.f;
+                fruit.setAttribute('cy', currentData.y + offset);
+            });
+        }
+
+        // --- 任務管理邏輯 ---
+        function addTask() {
+            const input = document.getElementById('new-task-input');
+            const text = input.value.trim();
+            if (!text || state.mode === 'off' || state.mode === 'standby') return;
+            state.tasks.push({
+                id: Date.now() + Math.random(),
+                text: text,
+                completed: false,
+                period: state.currentPeriod,
+                date: todayDateKey
+            });
+            input.value = '';
+            saveAndRenderTasks();
+        }
+
+        function addCellTask(inputElem, dateKey, period) {
+            const text = inputElem.value.trim();
+            if (!text) return;
+            state.tasks.push({
+                id: Date.now() + Math.random(),
+                text: text,
+                completed: false,
+                period: period,
+                date: dateKey
+            });
+            inputElem.value = '';
+            saveAndRenderTasks();
+        }
+
+        function toggleTask(id) {
+            const task = state.tasks.find(t => t.id === id);
+            if (task) task.completed = !task.completed;
+            saveAndRenderTasks();
+        }
+
+        function deleteTask(id) {
+            state.tasks = state.tasks.filter(t => t.id !== id);
+            saveAndRenderTasks();
+        }
+
+        function moveTask(id, target) {
+            const task = state.tasks.find(t => t.id === id);
+            if (!task) return;
+            if (target === 'next') {
+                task.period = state.currentPeriod < 8 ? state.currentPeriod + 1 : 1;
+            } else if (target === 'tomorrow') {
+                task.period = 1;
+                task.date = addDaysToDateKey(task.date || todayDateKey, 1);
+            }
+            saveAndRenderTasks();
+        }
+
+        function renderTasks() {
+            const list = document.getElementById('task-list');
+            
+            if (state.mode === 'off' || state.mode === 'standby') {
+                document.getElementById('task-count-label').textContent = `0 待辦`;
+                list.innerHTML = `<div class="p-8 text-center text-slate-400">目前非工作時段</div>`;
+                return;
+            }
+
+            const currentTasks = state.tasks.filter(t => t.period === state.currentPeriod && (t.date === todayDateKey || !t.date));
+            document.getElementById('task-count-label').textContent = `${currentTasks.filter(t => !t.completed).length} 待辦`;
+
+            if (currentTasks.length === 0) {
+                list.innerHTML = `
+                <div class="flex flex-col items-center justify-center p-10 text-theme-light">
+                    <i data-lucide="clipboard-list" class="w-12 h-12 mb-2 opacity-60 float-slow"></i>
+                    <p class="font-medium opacity-80">這節課還沒有細項任務，點擊下方新增</p>
+                </div>`;
+            } else {
+                list.innerHTML = currentTasks.map(t => `
+                    <div class="group flex items-center justify-between p-4 hover:bg-white/50 transition-colors rounded-2xl mx-1 my-1">
+                        <div class="flex items-center gap-4">
+                            <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask(${t.id})" 
+                                class="w-6 h-6 rounded-lg border-2 border-theme text-theme-main focus:ring-0 cursor-pointer shadow-sm">
+                            <span class="${t.completed ? 'task-done' : 'text-slate-700 font-bold'} text-lg">${t.text}</span>
+                        </div>
+                        <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            ${!t.completed ? `
+                                <button onclick="moveTask(${t.id}, 'next')" class="text-xs font-bold text-theme-light bg-white shadow-sm px-3 py-1.5 rounded-full hover:bg-slate-50 transition-colors">推下節</button>
+                                <button onclick="moveTask(${t.id}, 'tomorrow')" class="text-xs font-bold text-theme-main bg-white shadow-sm px-3 py-1.5 rounded-full hover:bg-slate-50 transition-colors">推明天</button>
+                            ` : ''}
+                            <button onclick="deleteTask(${t.id})" class="text-slate-300 hover:text-red-400 p-1 transition-colors"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                        </div>
+                    </div>
+                `).join('');
+            }
+            refreshIcons();
+        }
+
+        function saveAndRenderTasks() {
+            syncToCloud();
+            renderTasks();
+            if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
+                generateWeeklyTable();
+            }
+        }
+
+        function switchTab(tab) {
+            document.getElementById('tab-today').classList.toggle('hidden', tab !== 'today');
+            document.getElementById('tab-weekly').classList.toggle('hidden', tab !== 'weekly');
+            
+            const btnToday = document.getElementById('btn-today');
+            const btnWeekly = document.getElementById('btn-weekly');
+            
+            const activeClass = 'px-6 py-2 rounded-full theme-btn-gradient shadow-md font-bold text-sm md:text-base transition-all text-white';
+            const inactiveClass = 'px-6 py-2 rounded-full hover:bg-white text-sm md:text-base transition-all text-slate-500 hover:text-theme-main font-bold';
+
+            if (tab === 'today') {
+                btnToday.className = activeClass;
+                btnWeekly.className = inactiveClass;
+                updateCurrentInfo();
+            } else {
+                btnToday.className = inactiveClass;
+                btnWeekly.className = activeClass;
+                generateWeeklyTable();
+            }
+        }
+
+        function changeWeek(daysOffset) {
+            state.viewingWeek = addDaysToDateKey(state.viewingWeek, daysOffset);
+            generateWeeklyTable();
+        }
+
+        function goThisWeek() {
+            state.viewingWeek = state.actualWeek;
+            generateWeeklyTable();
+        }
+
+        function generateWeeklyTable() {
+            document.getElementById('week-date-range').textContent = getWeekRangeDisplay(state.viewingWeek);
+            
+            const thead = document.getElementById('weekly-thead');
+            const dayNames = ['週日', '週一', '週二', '週三', '週四', '週五', '週六'];
+            const treeEmojis = ["💤", "🌰", "🌱", "🌿", "🪴", "🎋", "🌲", "🌳", "🍎"];
+            
+            let theadHtml = `<tr class="bg-white/60 text-theme-main text-sm backdrop-blur-sm">
+                <th class="p-4 border-b border-white font-bold time-col align-middle">時間 (24H)</th>`;
+            
+            for(let d = 0; d <= 6; d++) {
+                const lvl = getTreeLevel(state.viewingWeek, d);
+                const emoji = treeEmojis[lvl];
+                const isToday = (state.viewingWeek === state.actualWeek && d === new Date().getDay());
+                const highlightClass = isToday ? 'text-theme-light' : 'text-slate-600';
+                
+                theadHtml += `<th class="p-2 border-b border-l border-white font-bold ${highlightClass}">
+                    <div class="flex flex-col items-center gap-1">
+                        <span>${dayNames[d]}</span>
+                        <span id="header-emoji-${d}" class="text-2xl drop-shadow-sm mt-1 mb-1 transition-transform hover:scale-110" title="樹木大小: Level ${lvl}">${emoji}</span>
+                    </div>
+                </th>`;
+            }
+            theadHtml += `</tr>`;
+            thead.innerHTML = theadHtml;
+
+            const body = document.getElementById('weekly-body');
+            body.innerHTML = '';
+            
+            const currentWeekPlan = state.allPlans[state.viewingWeek] || {};
+            const todayIndex = new Date().getDay();
+            const isViewingActualWeek = (state.viewingWeek === state.actualWeek);
+
+            for (let p = 1; p <= 8; p++) {
+                const config = timeConfig.find(c => c.id === p);
+                
+                let row = `<tr class="group">
+                    <td class="p-4 bg-white/40 border-b border-white font-medium time-col backdrop-blur-sm">
+                        <div class="flex flex-col items-center">
+                            <span class="text-xs text-theme-light font-bold mb-1">第 ${p} 節</span>
+                            <span class="text-base font-black text-slate-700">${config.start}</span>
+                            <span class="text-xs text-slate-400">至</span>
+                            <span class="text-base font-black text-slate-700">${config.end}</span>
+                        </div>
+                    </td>`;
+                
+                for (let d = 0; d <= 6; d++) {
+                    let rawVal = currentWeekPlan[d]?.[p];
+                    let mainTask = "";
+                    if (typeof rawVal === 'string') mainTask = rawVal;
+                    else if (rawVal) mainTask = rawVal.main || "";
+
+                    const isTodayCell = isViewingActualWeek && (d === todayIndex);
+                    const isCurrentPeriod = isTodayCell && (state.currentPeriod === p) && (state.mode === 'work' || state.mode === 'break');
+                    const bgClass = isCurrentPeriod ? 'bg-white/80 shadow-inner' : (isTodayCell ? 'bg-white/40' : 'bg-transparent');
+                    
+                    const cellDateKey = addDaysToDateKey(state.viewingWeek, d);
+                    const cellTasks = state.tasks.filter(t => t.date === cellDateKey && t.period === p);
+                    
+                    let tasksHtml = cellTasks.map(t => `
+                        <div draggable="true" ondragstart="handleDragStart(event, ${t.id})" ondragend="handleDragEnd(event)" class="flex items-start gap-1.5 group/task py-1 cursor-move hover:bg-white/40 rounded px-1 -mx-1 transition-colors">
+                            <input type="checkbox" ${t.completed ? 'checked' : ''} onchange="toggleTask(${t.id})" class="mt-0.5 w-3.5 h-3.5 rounded-sm border-theme text-theme-main focus:ring-0 cursor-pointer shadow-sm">
+                            <span class="flex-1 text-[11px] leading-tight font-medium ${t.completed ? 'task-done' : 'text-slate-700'} break-all pointer-events-none">${t.text}</span>
+                            <button onclick="deleteTask(${t.id})" class="opacity-0 group-hover/task:opacity-100 text-red-400 hover:text-red-600 p-0.5 transition-opacity"><i data-lucide="x" class="w-3 h-3"></i></button>
+                        </div>
+                    `).join('');
+
+                    if(cellTasks.length === 0) {
+                        tasksHtml = `<div class="text-[10px] text-slate-400 italic text-center py-2 opacity-60 pointer-events-none">無細項</div>`;
+                    }
+
+                    row += `<td class="p-0 border-b border-l border-white min-w-[150px] focus-within:bg-white/60 transition-colors align-top">
+                        <div class="flex flex-col h-full ${bgClass} p-2.5 gap-1 rounded-sm">
+                            <!-- 主事項 (大任務) -->
+                            <input type="text" 
+                                oninput="updateWeeklyPlan('${state.viewingWeek}', ${d}, ${p}, 'main', this.value)"
+                                class="w-full text-sm text-theme-main font-black bg-transparent border-b border-theme/50 outline-none placeholder:text-slate-400 placeholder:font-normal pb-1 focus-theme"
+                                placeholder="${isViewingActualWeek ? '主事項 (大任務)...' : '主事項'}"
+                                value="${mainTask}">
+                            
+                            <!-- 同步細項打勾清單 (支援拖曳放置) -->
+                            <div class="flex-1 overflow-y-auto hide-scrollbar max-h-32 flex flex-col gap-0.5 mt-1 mb-1 p-1 -mx-1 rounded transition-all min-h-[2.5rem]"
+                                 ondragover="handleDragOver(event)"
+                                 ondragleave="handleDragLeave(event)"
+                                 ondrop="handleDrop(event, '${cellDateKey}', ${p})">
+                                ${tasksHtml}
+                            </div>
+
+                            <!-- 新增任務輸入框 -->
+                            <input type="text" 
+                                class="w-full text-[11px] text-slate-600 font-medium bg-white/60 border border-white rounded px-2 py-1 outline-none focus:border-theme-light shadow-inner placeholder:text-slate-400 mt-auto"
+                                placeholder="新增細項 (按Enter)"
+                                onkeypress="if(event.key==='Enter') addCellTask(this, '${cellDateKey}', ${p})">
+                        </div>
+                    </td>`;
+                }
+                row += `</tr>`;
+                
+                const isLunch = (p === 4);
+                row += `<tr class="${isLunch ? 'bg-white/50' : 'bg-white/20'} text-slate-500 backdrop-blur-sm">
+                    <td class="p-2 border-b border-white text-center text-[10px] font-bold">
+                        ${isLunch ? '🍱 午休' : '☕ 休息'} ${config.breakStart}-${config.breakEnd}
+                    </td>
+                    <td colspan="7" class="border-b border-l border-white border-dashed"></td>
+                </tr>`;
+
+                body.innerHTML += row;
+            }
+            refreshIcons();
+        }
+
+        // --- 拖曳功能 (Drag & Drop) 邏輯 ---
+        function handleDragStart(e, id) {
+            e.dataTransfer.setData('text/plain', id);
+            e.currentTarget.style.opacity = '0.4'; 
+        }
+
+        function handleDragEnd(e) {
+            e.currentTarget.style.opacity = '1';
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault(); 
+            e.currentTarget.classList.add('bg-white/60', 'ring-1', 'ring-theme-main');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('bg-white/60', 'ring-1', 'ring-theme-main');
+        }
+
+        function handleDrop(e, targetDateKey, targetPeriod) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('bg-white/60', 'ring-1', 'ring-theme-main');
+            
+            const id = Number(e.dataTransfer.getData('text/plain'));
+            if (!id) return;
+            
+            const taskIndex = state.tasks.findIndex(t => t.id === id);
+            if (taskIndex !== -1) {
+                state.tasks[taskIndex].date = targetDateKey;
+                state.tasks[taskIndex].period = targetPeriod;
+                saveAndRenderTasks();
+            }
+        }
+
+        function updateWeeklyPlan(weekKey, day, period, field, value) {
+            if (!state.allPlans) state.allPlans = {};
+            if (!state.allPlans[weekKey]) state.allPlans[weekKey] = {};
+            if (!state.allPlans[weekKey][day]) state.allPlans[weekKey][day] = {};
+            
+            let currentPlan = state.allPlans[weekKey][day][period];
+            if (typeof currentPlan === 'string') currentPlan = { main: currentPlan, sub: '' };
+            else if (!currentPlan) currentPlan = { main: '', sub: '' };
+
+            currentPlan[field] = value;
+            state.allPlans[weekKey][day][period] = currentPlan;
+            syncToCloud();
+
+            if (weekKey === state.actualWeek && day === new Date().getDay()) {
+                updateTree();
+                if(state.mode === 'work' || state.mode === 'break'){
+                    if(period === state.currentPeriod) {
+                        document.getElementById('current-task-display').textContent = currentPlan.main || "今日此節尚未排課";
+                    }
+                }
+            }
+
+            const newLvl = getTreeLevel(weekKey, day);
+            const treeEmojis = ["💤", "🌰", "🌱", "🌿", "🪴", "🎋", "🌲", "🌳", "🍎"];
+            const headerEmoji = document.getElementById(`header-emoji-${day}`);
+            if (headerEmoji) {
+                headerEmoji.textContent = treeEmojis[newLvl];
+                headerEmoji.title = `樹木大小: Level ${newLvl}`;
+            }
+        }
+    </script>
+</body>
+</html>
