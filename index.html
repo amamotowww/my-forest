@@ -445,10 +445,6 @@ const initAuth = async () => {
                 console.log("等待登入中...");
             }
         });
-                    } else if (isInitialLoad) {
-                        // 若雲端無資料，嘗試從 localStorage 拉取並無縫移轉至雲端
-                        migrateLocalToCloud();
-                    }
                     
                     // 防呆：如果使用者正在打字，不進行重新渲染以免搶走游標
                     const activeElement = document.activeElement;
