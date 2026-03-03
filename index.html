@@ -69,16 +69,9 @@
 
     <!-- 啟動遮罩 -->
     <div id="start-overlay" class="fixed inset-0 z-[100] theme-overlay-gradient flex flex-col items-center justify-center text-white p-6 text-center">
-        
         <i id="start-icon" data-lucide="sparkles" class="w-20 h-20 mb-6 text-white drop-shadow-lg float-slow"></i>
         <h1 class="text-4xl font-black mb-4 drop-shadow-md tracking-wide" id="start-title">任務森林</h1>
         <p class="mb-8 opacity-90 max-w-md font-bold text-white/90">陽光正好，微風不燥。將繁雜的思緒清空，<br>帶著滿滿的活力，迎接今天的第一個挑戰吧！</p>
-        
-        <button id="google-login-btn" onclick="loginWithGoogle()" class="bg-white text-slate-700 px-8 py-4 rounded-full font-bold text-lg shadow-xl hover:bg-slate-50 transition-all inline-flex items-center justify-center gap-3 mb-4">
-            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" class="w-6 h-6">
-            使用 Google 帳號登入
-        </button>
-
         <button id="start-btn" disabled onclick="initApp()" class="bg-white/70 text-slate-500 px-10 py-4 rounded-full font-black text-xl shadow-xl transition-all cursor-not-allowed inline-flex items-center justify-center gap-3">
             <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i> 連結雲端大腦中...
         </button>
@@ -261,8 +254,8 @@
     <!-- 將模組改為 type="module" 以引入 Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // 將重要函數導出到 global window 物件，確保 HTML 中 on 事件可以順利觸發
         window.initApp = initApp;
@@ -352,183 +345,59 @@ import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/f
         });
 
         // -----------------------------------------------------
-        // Firebase 雲端大腦架構與同步機制
-        // -----------------------------------------------------
-        const firebaseConfig = {
-  apiKey: "AIzaSyBnTrFzw-2lHHLhj2JqNiSnqP_Rjqis2uc",
-  authDomain: "my-forest-6e9b3.firebaseapp.com",
-  projectId: "my-forest-6e9b3",
-  storageBucket: "my-forest-6e9b3.firebasestorage.app",
-  messagingSenderId: "319896396642",
-  appId: "1:319896396642:web:7278964aec5763cbd6823b"
-};
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = 'my-task-forest'; // my-forest-6e9b3
-
-        let currentUser = null;
-        let isInitialLoad = true;
-
-        const initAuth = async () => {
-    console.log("導航儀已就緒，請點擊 Google 登入以開啟雲端同步。");
-};
-
-        // 啟動身分驗證
-        initAuth();
-async function loginWithGoogle() {
-    try {
-        const provider = new GoogleAuthProvider();
-        // 這是核心！它會彈出 Google 登入視窗
-        const result = await signInWithPopup(auth, provider);
-        console.log("登入成功！使用者：", result.user.displayName);
-        
-        // 登入成功後，隱藏登入按鈕，準備讓使用者點擊 Play
-        document.getElementById('google-login-btn').style.display = 'none';
-        
-    } catch (error) {
-        console.error("登入失敗：", error.message);
-        alert("登入失敗，請檢查 Firebase 後台是否已開啟 Google 登入功能。");
-    }
-}
-
-// 務必將它掛載到 window，這樣 HTML 按鈕才找得到它
-window.loginWithGoogle = loginWithGoogle;
-        onAuthStateChanged(auth, (user) => {
-            currentUser = user;
-            if (user) {
-                // 堅守規則：使用標準專屬路徑儲存個人的所有資料
-                const docRef = doc(db, 'artifacts', appId, 'users', user.uid, 'appData', 'main');
-                
-                onSnapshot(docRef, (docSnap) => {
-                    if (docSnap.exists()) {
-                        const data = docSnap.data();
-                        state.tasks = data.tasks || [];
-                        state.allPlans = data.allPlans || {};
-                        if (!state.allPlans[state.viewingWeek]) state.allPlans[state.viewingWeek] = {};
-                        
-                        if (data.appName) {
-                            document.getElementById('app-name-display').textContent = data.appName;
-                        }
-                    } else if (isInitialLoad) {
-                        // 若雲端無資料，嘗試從 localStorage 拉取並無縫移轉至雲端
-                        migrateLocalToCloud();
-                    }
-                    
-                    // 防呆：如果使用者正在打字，不進行重新渲染以免搶走游標
-                    const activeElement = document.activeElement;
-                    const isInputFocused = activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA' || activeElement.isContentEditable);
-                    
-                    if (isInitialLoad || !isInputFocused) {
-                        renderTasks();
-                        if (!document.getElementById('tab-weekly').classList.contains('hidden')) {
-                            generateWeeklyTable();
-                        }
-                        updateCurrentInfo();
-                    }
-                    
-                    if (isInitialLoad) {
-                        isInitialLoad = false;
-                        // 雲端資料載入完成，解鎖啟動按鈕
-                        const btn = document.getElementById('start-btn');
-                        if (btn) {
-                            btn.disabled = false;
-                            btn.className = "bg-white text-theme-main px-12 py-4 rounded-full font-black text-xl shadow-xl hover:shadow-white/40 hover:-translate-y-1 transition-all cursor-pointer inline-flex items-center justify-center gap-2";
-                            btn.innerHTML = `<i data-lucide="play" class="w-6 h-6"></i> Play 啟動這一天`;
-                            refreshIcons();
-                        }
-                    }
-                }, (error) => {
-                    console.error("Cloud sync error:", error);
-                });
-            }
-        });
-
-        // 舊資料移轉邏輯
-        function migrateLocalToCloud() {
-            const localTasks = JSON.parse(localStorage.getItem('myTasks_v2')) || [];
-            const localPlans = JSON.parse(localStorage.getItem('myWeeklyPlans_v3')) || {};
-            const localAppName = localStorage.getItem('myAppName_v1') || '任務森林';
-            
-            state.tasks = localTasks;
-            state.allPlans = localPlans;
-            if (!state.allPlans[state.viewingWeek]) state.allPlans[state.viewingWeek] = {};
-            document.getElementById('app-name-display').textContent = localAppName;
-            
-            syncToCloud();
-        }
-
-        // 推送至雲端核心
-        function syncToCloud() {
-            if (!currentUser) return;
-            const docRef = doc(db, 'artifacts', appId, 'users', currentUser.uid, 'appData', 'main');
-            
-            // 加入浮動同步提示
-            const syncIcon = document.getElementById('cloud-sync-icon');
-            if(syncIcon) {
-                syncIcon.classList.remove('opacity-0');
-                setTimeout(() => syncIcon.classList.add('opacity-0'), 1000);
-            }
-
-            setDoc(docRef, {
-                tasks: state.tasks,
-                allPlans: state.allPlans,
-                appName: document.getElementById('app-name-display').textContent
-            }, { merge: true }).catch(err => console.error("Cloud save error:", err));
-        }
-        // -----------------------------------------------------
-
-        // -----------------------------------------------------
-        // 音效引擎 (真實吉他與鳥鳴)
+        // 精簡版音效引擎 (極短提示音)
         // -----------------------------------------------------
         let audioCtx;
-        const audioPlayer = new Audio();
-        
-        // 吉他 E (青春流行) - 上課鐘聲 (木吉他掃弦聲)
-        const startBellSrc = 'https://actions.google.com/sounds/v1/foley/acoustic_guitar_strum.ogg'; 
-        // 鳥鳴 B (溪畔翠鳥) - 下課鐘聲 (帶水流聲的鳥鳴)
-        const endBellSrc = 'https://actions.google.com/sounds/v1/water/waves_crashing_on_rock_beach.ogg'; 
 
         function playBell(type) {
-            try {
-                if (type === 'start') {
-                    audioPlayer.src = startBellSrc; 
-                    audioPlayer.play().catch(e => playSynthesizedBell('start'));
-                } else {
-                    audioPlayer.src = endBellSrc;
-                    audioPlayer.play().catch(e => playSynthesizedBell('end'));
-                }
-            } catch (e) {
-                playSynthesizedBell(type);
+            // 嘗試初始化 AudioContext (需在使用者互動後才能發聲)
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             }
-        }
-
-        // 安全備案：電子合成音
-        function playSynthesizedBell(type) {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            if (audioCtx.state === 'suspended') audioCtx.resume();
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
             
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
             
+            // 使用正弦波，聲音最圓潤不刺耳
             osc.type = 'sine';
+            
+            const now = audioCtx.currentTime;
+            
             if (type === 'start') {
-                osc.frequency.setValueAtTime(523.25, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.3);
-                osc.frequency.exponentialRampToValueAtTime(523.25, audioCtx.currentTime + 1.2);
+                // 上課：清脆向上的「叮-叮」兩聲 (約 1 秒)
+                // 第一聲
+                osc.frequency.setValueAtTime(880, now);      // A5
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.3, now + 0.05);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+                
+                // 第二聲 (較高)
+                osc.frequency.setValueAtTime(1046.50, now + 0.3); // C6
+                gain.gain.setValueAtTime(0, now + 0.3);
+                gain.gain.linearRampToValueAtTime(0.3, now + 0.35);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+                
+                osc.start(now);
+                osc.stop(now + 0.9);
+                
             } else {
-                osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
-                osc.frequency.exponentialRampToValueAtTime(1500, audioCtx.currentTime + 0.2);
-                osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.6);
+                // 下課：柔和下降的一聲「咚~」 (約 1.5 秒)
+                osc.frequency.setValueAtTime(659.25, now);     // E5
+                osc.frequency.exponentialRampToValueAtTime(329.63, now + 1.5); // 降到 E4
+                
+                gain.gain.setValueAtTime(0, now);
+                gain.gain.linearRampToValueAtTime(0.4, now + 0.1); // 柔和起音
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 1.5); // 緩慢淡出
+                
+                osc.start(now);
+                osc.stop(now + 1.5);
             }
 
-            gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 1.5);
-            
             osc.connect(gain); 
             gain.connect(audioCtx.destination);
-            osc.start(); 
-            osc.stop(audioCtx.currentTime + 1.5);
         }
         // -----------------------------------------------------
 
@@ -659,8 +528,15 @@ window.loginWithGoogle = loginWithGoogle;
 
         function toggleBreakOverlay(show) {
             const overlay = document.getElementById('break-overlay');
-            if (show) overlay.classList.remove('opacity-0', 'pointer-events-none');
+            // 若被使用者手動隱藏，就不再顯示
+            if (show && !breakDismissed) overlay.classList.remove('opacity-0', 'pointer-events-none');
             else overlay.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        // 新增：手動隱藏休息遮罩
+        function dismissBreak() {
+            breakDismissed = true;
+            toggleBreakOverlay(false);
         }
 
         function updateCurrentInfo() {
