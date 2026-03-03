@@ -68,13 +68,28 @@
 <body class="theme-bg-gradient min-h-screen pb-20 text-slate-700 bg-fixed font-medium transition-colors duration-1000">
 
     <!-- 啟動遮罩 -->
-    <div id="start-overlay" class="fixed inset-0 z-[100] theme-overlay-gradient flex flex-col items-center justify-center text-white p-6 text-center">
+<div id="start-overlay" class="fixed inset-0 z-[100] theme-overlay-gradient flex flex-col items-center justify-center text-white p-6 text-center">
         <i id="start-icon" data-lucide="sparkles" class="w-20 h-20 mb-6 text-white drop-shadow-lg float-slow"></i>
         <h1 class="text-4xl font-black mb-4 drop-shadow-md tracking-wide" id="start-title">任務森林</h1>
         <p class="mb-8 opacity-90 max-w-md font-bold text-white/90">陽光正好，微風不燥。將繁雜的思緒清空，<br>帶著滿滿的活力，迎接今天的第一個挑戰吧！</p>
-        <button id="start-btn" disabled onclick="initApp()" class="bg-white/70 text-slate-500 px-10 py-4 rounded-full font-black text-xl shadow-xl transition-all cursor-not-allowed inline-flex items-center justify-center gap-3">
-            <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i> 連結雲端大腦中...
-        </button>
+        
+        <div id="auth-section" class="flex flex-col items-center gap-4 transition-all min-h-[120px]">
+            <button id="login-btn" onclick="signInWithGoogle()" class="bg-white text-slate-700 px-8 py-3 rounded-full font-bold shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-3">
+                <svg class="w-5 h-5" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                使用 Google 登入
+            </button>
+            
+            <div id="user-info" class="hidden flex-col items-center gap-4">
+                <div class="flex items-center gap-3 bg-white/20 px-6 py-2 rounded-full border border-white/50 shadow-inner">
+                    <img id="user-avatar" src="" class="w-8 h-8 rounded-full border-2 border-white shadow-sm" alt="頭貼">
+                    <span id="user-name" class="font-bold text-white tracking-wide">載入中...</span>
+                </div>
+                <button id="start-btn" onclick="initApp()" class="bg-white/90 text-theme-main px-10 py-3 rounded-full font-black text-xl shadow-xl hover:-translate-y-0.5 hover:bg-white transition-all inline-flex items-center gap-3">
+                    <i data-lucide="play-circle" class="w-6 h-6"></i> 開始今日任務
+                </button>
+                <button onclick="signOutUser()" class="text-white/60 text-sm font-bold hover:text-white transition-colors underline underline-offset-4">登出帳號</button>
+            </div>
+        </div>
     </div>
 
     <!-- 強制下課遮罩 -->
@@ -251,13 +266,17 @@
         </div>
     </main>
 
-    <!-- 將模組改為 type="module" 以引入 Firebase -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        // 🚨 注意這裡的網址都換成你的 12.10.0 版本了！
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+        import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 
-        // 將重要函數導出到 global window 物件，確保 HTML 中 on 事件可以順利觸發
+        // 將新的 auth 相關函數導出到全域
+        window.signInWithGoogle = signInWithGoogle;
+        window.signOutUser = signOutUser;
+
+        // 原本的導出
         window.initApp = initApp;
         window.editAppName = editAppName;
         window.closeNameModal = closeNameModal;
@@ -277,6 +296,70 @@
         window.handleDragLeave = handleDragLeave;
         window.handleDrop = handleDrop;
         window.updateWeeklyPlan = updateWeeklyPlan;
+
+        // ==========================================
+        // Step 3: Firebase 初始化與登入狀態監聽
+        // ==========================================
+        
+        // 貼上你的專屬設定！
+        const firebaseConfig = {
+            apiKey: "AIzaSyBnTrFzw-2lHHLhj2JqNiSnqP_Rjqis2uc",
+            authDomain: "my-forest-6e9b3.firebaseapp.com",
+            projectId: "my-forest-6e9b3",
+            storageBucket: "my-forest-6e9b3.firebasestorage.app",
+            messagingSenderId: "319896396642",
+            appId: "1:319896396642:web:7278964aec5763cbd6823b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const googleProvider = new GoogleAuthProvider();
+
+        let currentUser = null; // 紀錄當前登入的使用者
+
+        function signInWithGoogle() {
+            signInWithPopup(auth, googleProvider).catch((error) => {
+                console.error("登入失敗:", error);
+                alert("登入失敗，請重試！");
+            });
+        }
+
+        function signOutUser() {
+            signOut(auth).then(() => {
+                // 登出後重置本地資料並重新整理畫面
+                location.reload(); 
+            });
+        }
+
+        // 監聽登入狀態改變
+        onAuthStateChanged(auth, async (user) => {
+            const loginBtn = document.getElementById('login-btn');
+            const userInfo = document.getElementById('user-info');
+            
+            if (user) {
+                // 已登入
+                currentUser = user;
+                loginBtn.classList.add('hidden');
+                userInfo.classList.remove('hidden');
+                userInfo.classList.add('flex');
+                
+                document.getElementById('user-avatar').src = user.photoURL;
+                document.getElementById('user-name').textContent = `歡迎，${user.displayName}`;
+                
+                // 讀取該使用者的專屬雲端資料 (此函數會在 Step 4 補上)
+                if (typeof loadUserData === 'function') {
+                    await loadUserData(user.uid);
+                }
+            } else {
+                // 未登入
+                currentUser = null;
+                loginBtn.classList.remove('hidden');
+                userInfo.classList.add('hidden');
+                userInfo.classList.remove('flex');
+            }
+        });
+        // ==========================================
 
         // --- 核心狀態與工具邏輯 ---
         function getWeekStart(date) {
@@ -403,8 +486,63 @@
 
         let clockInterval;
         let isFirstTick = true;
+        // ==========================================
+        // Step 4: 雲端資料同步邏輯 (綁定個人 UID)
+        // ==========================================
+        // 從資料庫讀取該使用者的資料
+        window.loadUserData = async function(uid) {
+            try {
+                const docRef = doc(db, "users", uid);
+                const docSnap = await getDoc(docRef);
+                
+                if (docSnap.exists()) {
+                    const data = docSnap.data();
+                    // 將雲端資料覆寫回本地 state
+                    state.tasks = data.tasks || [];
+                    state.allPlans = data.allPlans || {};
+                    if (data.appName) {
+                        document.getElementById('app-name-display').textContent = data.appName;
+                    }
+                    
+                    // 資料讀取完畢後，重新渲染畫面以顯示最新進度
+                    if (typeof renderTasks === 'function') renderTasks();
+                    if (typeof generateWeeklyTable === 'function') generateWeeklyTable();
+                    if (typeof updateCurrentInfo === 'function') updateCurrentInfo();
+                }
+            } catch (error) {
+                console.error("讀取資料失敗:", error);
+            }
+        };
+
+        // 將資料寫入雲端，綁定在當前使用者的 UID 之下
+        window.syncToCloud = async function() {
+            // 如果沒登入就不儲存
+            if (!currentUser) return; 
+            
+            try {
+                const docRef = doc(db, "users", currentUser.uid);
+                await setDoc(docRef, {
+                    tasks: state.tasks,
+                    allPlans: state.allPlans,
+                    appName: document.getElementById('app-name-display').textContent,
+                    lastUpdate: new Date()
+                }, { merge: true }); // 使用 merge 確保不會覆寫掉未更新的欄位
+                
+                // 顯示右上角雲端同步成功的打雷圖示動效
+                const syncIcon = document.getElementById('cloud-sync-icon');
+                if(syncIcon) {
+                    syncIcon.classList.remove('opacity-0');
+                    setTimeout(() => syncIcon.classList.add('opacity-0'), 2000);
+                }
+            } catch (error) {
+                console.error("同步失敗:", error);
+            }
+        };
+        // ==========================================
+
 
         // 初始化 UI 工具
+        if (typeof lucide !== 'undefined') lucide.createIcons();        // 初始化 UI 工具
         if (typeof lucide !== 'undefined') lucide.createIcons();
         function refreshIcons() {
             if (typeof lucide !== 'undefined') lucide.createIcons();
