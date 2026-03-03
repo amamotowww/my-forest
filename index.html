@@ -99,6 +99,10 @@
         <p class="text-xl md:text-3xl font-bold mb-12 leading-relaxed text-white">去窗邊看看風景、喝口水吧<br><span class="text-white/80">放下手機，讓眼睛放鬆！</span></p>
         <div class="text-sm opacity-90 mb-2 tracking-widest uppercase font-bold">距離下節課還有</div>
         <div class="text-8xl md:text-9xl font-black tabular-nums tracking-tighter text-white drop-shadow-xl" id="break-timer-display">10:00</div>
+        
+        <button onclick="dismissBreak()" class="mt-10 px-6 py-2 bg-white/20 hover:bg-white/30 text-white rounded-full font-bold transition-colors border border-white/50 backdrop-blur-md">
+            我已經休息好了，隱藏畫面
+        </button>
     </div>
 
     <!-- 名稱編輯自訂彈窗 -->
@@ -486,6 +490,7 @@
 
         let clockInterval;
         let isFirstTick = true;
+        let breakDismissed = false; // 🟢 新增：宣告變數，避免發生 ReferenceError 導致程式崩潰
         // ==========================================
         // Step 4: 雲端資料同步邏輯 (綁定個人 UID)
         // ==========================================
@@ -629,7 +634,11 @@
                 updateCurrentInfo(); toggleBreakOverlay(foundMode === 'break');
                 isFirstTick = false;
             } else if (state.mode !== foundMode || state.currentPeriod !== foundPeriod) {
-                if (foundMode === 'work') { playBell('start'); toggleBreakOverlay(false); }
+                if (foundMode === 'work') { 
+                    breakDismissed = false; // 🟢 新增：每次開始上課時，把隱藏狀態歸零，確保下次休息還會跳出畫面
+                    playBell('start'); 
+                    toggleBreakOverlay(false); 
+                }
                 else if (foundMode === 'break') { playBell('end'); toggleBreakOverlay(true); }
                 else { toggleBreakOverlay(false); }
                 
